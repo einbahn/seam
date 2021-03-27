@@ -13,13 +13,18 @@ public class SeamCarver {
     private static final double MAX = Double.POSITIVE_INFINITY;
     private Picture picture;
     private double[][] energy;
+    private double[][] energyTransposed;
 
     public SeamCarver(Picture picture) {
+        if (picture == null) throw new IllegalArgumentException();
         this.picture = picture;
         energy = new double[height()][width()];
+        energyTransposed = new double[width()][height()]; 
         for (int row = 0; row < this.height(); row++) {
             for (int col = 0; col < this.width(); col++) {
-               energy[row][col] = energy(col, row);
+               double en = energy(col, row);
+               energy[row][col] = en;
+               energyTransposed[col][row] = en;
             }
         }
     }
@@ -47,10 +52,10 @@ public class SeamCarver {
     private double calculate(int rgbX, int rgbY) {
         int xr = (rgbX >> 16) & 0xFF;
         int xg = (rgbX >>  8) & 0xFF;
-        int xb = (rgbX) & 0xFF;
+        int xb = rgbX & 0xFF;
         int yr = (rgbY >> 16) & 0xFF;
         int yg = (rgbY >>  8) & 0xFF;
-        int yb = (rgbY) & 0xFF;
+        int yb = rgbY & 0xFF;
         return Math.pow((xr - yr), 2) + Math.pow((xg - yg), 2) + Math.pow((xb - yb), 2);
     }
     public double energy(int x, int y) {
@@ -97,7 +102,8 @@ public class SeamCarver {
                     try {
                         validateColumnIndex(tp[0]);
                         validateRowIndex(tp[1]);
-                        if (distTo[tp[1]][tp[0]] > distTo[p[1]][p[0]] + energy[p[1]][p[0]]) {
+                        if (distTo[tp[1]][tp[0]] > distTo[p[1]][p[0]] + energy[p[1]][p[0]]) 
+                        {
                             distTo[tp[1]][tp[0]] = distTo[p[1]][p[0]] + energy[p[1]][p[0]];
                             edgeTo[tp[1]][tp[0]] = p[0];
                         }
@@ -124,22 +130,73 @@ public class SeamCarver {
            seamArr[idx] = seam.pop();
            idx++;
         }
-        // StdOut.printf("Total energy: %.6f", minWeight);
-        // StdOut.println();
         return seamArr;
     }
 
     public int[] findHorizontalSeam() {
-        this.picture.setOriginLowerLeft();
-        return findVerticalSeam();
+        double minWeight = MAX;
+        int height = energyTransposed.length;
+        int width = energyTransposed[0].length;
+        Stack<Integer> seam = new Stack<>();
+        for (int col = 0; col < width; col++) {
+            double[][] distTo = new double[height][width];
+            int[][] edgeTo = new int[height][width];
+            LinkedList<int[]> orderedPoints = new LinkedList<>();
+            for (int r = 0; r < height; r++) {
+                for (int c = 0; c < width; c++) {
+                    distTo[r][c] = MAX;
+                    edgeTo[r][c] = -1;
+                }
+                for (int t = col - r - 1; t < col + r + 1; t++) 
+                    if (t >= 0 && t < width) orderedPoints.add(new int[]{t, r});
+            }
+            distTo[0][col] = energyTransposed[0][col];
+            for (int[] p : orderedPoints) {
+                LinkedList<int[]> tpp = new LinkedList<>();
+                tpp.add(new int[]{p[0]-1, p[1]+1});
+                tpp.add(new int[]{p[0], p[1]+1});
+                tpp.add(new int[]{p[0]+1, p[1]+1});
+                for (int[] tp : tpp) {
+                    if (tp[0] >= 0 && tp[0] < width && tp[1] >= 0 && tp[1] < height) {
+                        if (distTo[tp[1]][tp[0]] > distTo[p[1]][p[0]] + energyTransposed[p[1]][p[0]]) 
+                        {
+                            distTo[tp[1]][tp[0]] = distTo[p[1]][p[0]] + energyTransposed[p[1]][p[0]];
+                            edgeTo[tp[1]][tp[0]] = p[0];
+                        }
+                    }
+                }
+            }
+
+            for (int i = 0; i < width; i++) {
+                int lastRow = height - 1;
+                if (distTo[lastRow][i] < MAX && distTo[lastRow][i] < minWeight) {
+                    minWeight = distTo[lastRow][i];
+                    Stack<Integer> path = new Stack<>();
+                    for (int e = i; e != -1; e = edgeTo[lastRow--][e])
+                        path.push(e);
+                    seam = path;
+                }
+            }
+        }
+        int[] seamArr = new int[seam.size()];
+        int idx = 0;
+        while (!seam.isEmpty()) {
+           seamArr[idx] = seam.pop();
+           idx++;
+        }
+        return seamArr;
     }
 
     public static void main(String[] args) {
         Picture pic = new Picture(args[0]);
         SeamCarver sc = new SeamCarver(pic);
+        StdOut.print("Vertical Seam:\n");
         int[] s = sc.findVerticalSeam();
-        int[] h = sc.findHorizontalSeam();
         for (int i : s) StdOut.printf("%4d", i);
+        StdOut.println();
+        StdOut.print("Horizontal Seam:\n");
+        int[] h = sc.findHorizontalSeam();
         for (int i : h) StdOut.printf("%4d", i);
+        StdOut.println();
     }
 }

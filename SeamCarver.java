@@ -10,25 +10,38 @@ import edu.princeton.cs.algs4.StdOut;
 import java.util.LinkedList;
 
 public class SeamCarver {
+    private static final boolean HORIZONTAL   = true;
+    private static final boolean VERTICAL     = false;
     private static final double MAX = Double.POSITIVE_INFINITY;
-    private Picture picture;
+    private int[][] pixels;
 
     public SeamCarver(Picture picture) {
         if (picture == null)
             throw new IllegalArgumentException();
-        this.picture = picture;
+        pixels = new int[picture.height()][picture.width()];
+        for (int i = 0; i < picture.height(); i++) {
+            for (int j = 0; j < picture.width(); j++) {
+                pixels[i][j] = picture.getRGB(j, i);
+            }
+        }
     }
 
     public Picture picture() {
-        return picture;
+        Picture rtn = new Picture(pixels[0].length, pixels.length);
+        for (int i = 0; i < pixels.length; i++) 
+            for (int j = 0; j < pixels[0].length; j++) 
+               rtn.setRGB(j, i, pixels[i][j]);
+        return rtn;
     }
 
     public int width() {
-        return picture.width();
+        // return picture.width();
+        return pixels[0].length;
     }
 
     public int height() {
-        return picture.height();
+        // return picture.height();
+        return pixels.length;
     }
 
     private double calculate(int rgbX, int rgbY) {
@@ -42,10 +55,11 @@ public class SeamCarver {
     }
 
     public double energy(int x, int y) {
+        if (x < 0 || x >= width() || y < 0 || y >= height()) throw new IllegalArgumentException();
         if (x-1 >= 0 && x + 1 < width() && y - 1 >= 0 && y + 1 < height()) {
             return Math.sqrt(
-                calculate(picture.getRGB(x-1, y), picture.getRGB(x+1, y)) + 
-                calculate(picture.getRGB(x, y-1), picture.getRGB(x, y+1))
+                calculate(pixels[y][x-1], pixels[y][x+1]) + 
+                calculate(pixels[y-1][x], pixels[y+1][x])
             );
         } else {
             return 1000;
@@ -166,6 +180,62 @@ public class SeamCarver {
         return seamArr;
     }
 
+    private void validateSeam(int[] seam, boolean direction) {
+        int length = 0;
+        int range = 0;
+        if (direction == VERTICAL) {
+            length = height();
+            range = width();
+        } else {
+            length = width();
+            range = height();
+        }
+        if (seam == null) throw new IllegalArgumentException("Input is null");
+        if (seam.length != length) throw new IllegalArgumentException("Seam is not of right length.");
+        int entry = seam[0];
+        for (int i = 0; i < seam.length; i++) {
+            if (seam[i] < 0 || seam[i] >= range) throw new IllegalArgumentException("Seam is not in range:" + seam[i]);
+            if (Math.abs(seam[i] - entry) > 1) throw new IllegalArgumentException("successive entries in seam must differ by -1, 0, or +1");
+            entry = seam[i];
+        }
+    }
+
+    public void removeVerticalSeam(int[] seam) {
+        validateSeam(seam, VERTICAL);
+        int[][] np = new int[height()][width()-1];
+        for (int i = 0; i < pixels.length; i++) {
+            int index = seam[i];
+            int[] src = pixels[i];
+            int[] dest = np[i];
+        
+            if (index == 0) {
+                System.arraycopy(src, 1, dest, 0, dest.length);
+            } else if (index == width()-1) {
+                System.arraycopy(src, 0, dest, 0, dest.length);
+            } else {
+                System.arraycopy(src, 0, dest, 0, index);
+                System.arraycopy(src, index+1, dest, index, dest.length-index);
+            }
+        }
+        pixels = np;
+    }
+
+    public void removeHorizontalSeam(int[] seam) {
+        validateSeam(seam, HORIZONTAL);
+        int[][] np = new int[height()-1][width()];
+        for (int col = 0; col < width(); col++) {
+            int nprow = 0;
+            for (int row = 0; row < height(); row++) {
+                if (row != seam[col]) {
+                    np[nprow++][col] = pixels[row][col];
+                }
+            }
+        }
+        pixels = np;
+    }
+
+
+
     public static void main(String[] args) {
         Picture pic = new Picture(args[0]);
         SeamCarver sc = new SeamCarver(pic);
@@ -179,5 +249,7 @@ public class SeamCarver {
         for (int i : h)
             StdOut.printf("%4d", i);
         StdOut.println();
+        // sc.removeVerticalSeam(s);
+        sc.removeHorizontalSeam(h);
     }
 }
